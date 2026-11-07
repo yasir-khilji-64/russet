@@ -1,0 +1,31 @@
+{
+  "name": "russet",
+  "version": "0.0.0",
+  "description": "A coding agent, on your terms.",
+  "type": "module",
+  "private": true,
+  "scripts": {},
+  "keywords": [
+    "coding agent",
+    "AI",
+    "harness",
+    "developer tools",
+    "productivity"
+  ],
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24.21.0",
+    "pnpm": ">=11.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^5.0.5",
+    "@vitest/ui": "^5.0.5",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
+    "oxlint-plugin-oxfmt": "^0.1.0",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}

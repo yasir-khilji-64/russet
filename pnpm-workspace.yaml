@@ -1,0 +1,7 @@
+allowBuilds:
+  esbuild: false
+  unrs-resolver: false
+
+minimumReleaseAge: 7200
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false
