@@ -1,31 +1,34 @@
-export interface InferenceRequest {
-  model: {
-    providerId: string;
-    modelId: string;
-  };
-  systemPrompt?: string;
-  messages: readonly ConversationMessage[];
-  tools?: readonly ModelToolDefinition[];
+export interface ModelId {
+  providerId: string;
+  modelId: string;
 }
 
-export interface InferenceOptions {
-  signal?: AbortSignal;
-  thinking?: ThinkingOptions;
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | JsonObject;
+
+export interface JsonObject {
+  [key: string]: JsonValue;
 }
 
-export type FinishReason =
-  | 'stop'
-  | 'tool_use'
-  | 'length'
-  | 'aborted'
-  | 'error'
-  | 'unsupported';
+export interface ModelToolDefinition {
+  name: string;
+  description: string;
+  parameters: JsonObject;
+}
 
-export type ThinkingVisibility = 'visible' | 'summary' | 'opaque' | 'unknown';
+export interface ModelToolCall {
+  toolCallId: string;
+  name: string;
+  arguments: unknown;
+  argumentsError?: string;
+}
 
 export type ThinkingEffort = 'low' | 'medium' | 'high';
-
-export type ThinkingAvailability = 'available' | 'unavailable';
 
 export interface ThinkingOptions {
   effort?: ThinkingEffort;
@@ -36,48 +39,127 @@ export interface ThinkingSupport {
   supportedEfforts: readonly ThinkingEffort[];
 }
 
-export interface ModelToolCall {
-  toolCallId: string;
-  name: string;
-  arguments: unknown;
+export type ThinkingVisibility = 'visible' | 'summary' | 'opaque' | 'unknown';
+
+export type ThinkingAvailability = 'available' | 'unavailable';
+
+export interface NativeContinuation {
+  readonly format: 'pi-ai/in-memory-v1';
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly protocol: string;
 }
 
-export type ModelBlock =
-  | {
-      id: string;
-      type: 'text';
-      text: string;
-    }
-  | {
-      id: string;
-      type: 'thinking';
-      visibility: ThinkingVisibility;
-      text?: string;
-    }
-  | {
-      id: string;
-      type: 'toolcall';
-      toolCall: ModelToolCall;
-    };
+export type FinishReason =
+  | 'stop'
+  | 'tool_use'
+  | 'length'
+  | 'aborted'
+  | 'error'
+  | 'unsupported';
+
+export interface ModelUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+  totalCostUsd?: number;
+  costSource?: 'provider_reported' | 'catalog_estimate' | 'unknown';
+}
+
+export type InferenceFailureCode =
+  | 'model_not_found'
+  | 'invalid_context'
+  | 'unsupported_capability'
+  | 'provider_error'
+  | 'invalid_response'
+  | 'cancelled'
+  | 'timeout'
+  | 'stream_closed'
+  | 'internal_error';
+
+export interface InferenceFailure {
+  code: InferenceFailureCode;
+  message: string;
+  retryable: boolean;
+}
+
+export interface TextBlock {
+  id: string;
+  type: 'text';
+  text: string;
+}
+
+export interface ThinkingBlock {
+  id: string;
+  type: 'thinking';
+  visibility: ThinkingVisibility;
+  text?: string;
+}
+
+export interface ToolCallBlock {
+  id: string;
+  type: 'toolcall';
+  toolCall: ModelToolCall;
+}
+
+export type ModelBlock = TextBlock | ThinkingBlock | ToolCallBlock;
 
 export interface ModelResponse {
   requestId: string;
   messageId: string;
-  model: InferenceRequest['model'];
+  model: ModelId;
   finishReason: FinishReason;
   blocks: readonly ModelBlock[];
-  thinkingAvailability?: ThinkingAvailability;
+  thinkingAvailability: ThinkingAvailability;
+
+  protocol?: string;
+  timestamp?: number;
+  usage?: ModelUsage;
   nativeContinuation?: NativeContinuation;
-  usage?: {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-    reasoningTokens?: number;
-  };
-  failure?: {
-    code: string;
-    message: string;
-  };
+  failure?: InferenceFailure;
+}
+
+export interface UserConversationMessage {
+  role: 'user';
+  text: string;
+  timestamp?: number;
+}
+
+export interface AssistantConversationMessage {
+  role: 'assistant';
+  response: ModelResponse;
+}
+
+export interface ToolResultConversationMessage {
+  role: 'tool_result';
+  toolCallId: string;
+  toolName: string;
+  content: readonly {
+    type: 'text';
+    text: string;
+  }[];
+  isError: boolean;
+  timestamp?: number;
+}
+
+export type ConversationMessage =
+  | UserConversationMessage
+  | AssistantConversationMessage
+  | ToolResultConversationMessage;
+
+export interface InferenceRequest {
+  model: ModelId;
+  systemPrompt?: string;
+  messages: readonly ConversationMessage[];
+  tools?: readonly ModelToolDefinition[];
+}
+
+export interface InferenceOptions {
+  signal?: AbortSignal;
+  thinking?: ThinkingOptions;
 }
 
 interface EventIdentity {
@@ -144,56 +226,3 @@ export interface ModelStream extends AsyncIterable<ModelEvent> {
 export interface InferenceEngine {
   stream(request: InferenceRequest, options?: InferenceOptions): ModelStream;
 }
-
-export interface NativeContinuation {
-  readonly format: 'pi-ai/in-memory-v1';
-  readonly providerId: string;
-  readonly modelId: string;
-  readonly protocol: string;
-}
-
-export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | readonly JsonValue[]
-  | { readonly [key: string]: JsonValue };
-
-export type JsonObject = {
-  readonly [key: string]: JsonValue;
-};
-
-export interface ModelToolDefinition {
-  name: string;
-  description: string;
-  parameters: JsonObject;
-}
-
-export interface UserConversationMessage {
-  role: 'user';
-  text: string;
-  timestamp?: number;
-}
-
-export interface AssistantConversationMessage {
-  role: 'assistant';
-  response: ModelResponse;
-}
-
-export interface ToolResultConversationMessage {
-  role: 'tool_result';
-  toolCallId: string;
-  toolName: string;
-  content: readonly {
-    type: 'text';
-    text: string;
-  }[];
-  isError: boolean;
-  timestamp?: number;
-}
-
-export type ConversationMessage =
-  | UserConversationMessage
-  | AssistantConversationMessage
-  | ToolResultConversationMessage;

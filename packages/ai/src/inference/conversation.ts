@@ -1,7 +1,12 @@
 import type { Context, Message, Tool } from '@earendil-works/pi-ai';
 
 import { restorePiContinuation } from './continuation.js';
-import type { InferenceRequest, ModelToolDefinition } from './types.js';
+import { toPortablePiAssistant } from './portable.js';
+import type {
+  InferenceRequest,
+  ModelResponse,
+  ModelToolDefinition,
+} from './types.js';
 
 interface PendingToolCall {
   id: string;
@@ -34,15 +39,48 @@ function convertTools(definitions: readonly ModelToolDefinition[]): Tool[] {
   });
 }
 
+function sameModel(
+  response: ModelResponse,
+  request: InferenceRequest,
+  protocol: string,
+): boolean {
+  return (
+    response.model.providerId === request.model.providerId &&
+    response.model.modelId === request.model.modelId &&
+    (response.protocol === undefined || response.protocol === protocol)
+  );
+}
+
+function lastForeignAssistantIndex(
+  request: InferenceRequest,
+  protocol: string,
+): number {
+  let lastForeign = -1;
+
+  for (let index = 0; index < request.messages.length; index++) {
+    const message = request.messages[index];
+
+    if (
+      message?.role === 'assistant' &&
+      !sameModel(message.response, request, protocol)
+    ) {
+      lastForeign = index;
+    }
+  }
+
+  return lastForeign;
+}
+
 export function buildPiContext(
   request: InferenceRequest,
   protocol: string,
 ): Context {
   const messages: Message[] = [];
+  const foreignBoundary = lastForeignAssistantIndex(request, protocol);
 
   let pending: PendingToolCall[] = [];
 
-  for (const message of request.messages) {
+  for (const [index, message] of request.messages.entries()) {
     switch (message.role) {
       case 'user': {
         if (pending.length > 0) {
@@ -67,47 +105,69 @@ export function buildPiContext(
 
         const response = message.response;
 
-        if (response.failure || !response.nativeContinuation) {
-          throw new Error('Assistant response has no usable continuation.');
+        if (
+          response.failure ||
+          (response.finishReason !== 'stop' &&
+            response.finishReason !== 'tool_use')
+        ) {
+          throw new Error(
+            'Cannot continue an unsuccessful assistant response.',
+          );
         }
+
+        const useNative =
+          sameModel(response, request, protocol) && index > foreignBoundary;
+
+        const assistant = useNative
+          ? (() => {
+              if (!response.nativeContinuation) {
+                throw new Error(
+                  'Compatible native continuation is unavailable.',
+                );
+              }
+
+              return restorePiContinuation(response.nativeContinuation, {
+                providerId: request.model.providerId,
+                modelId: request.model.modelId,
+                protocol,
+              });
+            })()
+          : toPortablePiAssistant(response);
 
         if (
-          response.model.providerId !== request.model.providerId ||
-          response.model.modelId !== request.model.modelId
+          assistant.stopReason !== 'stop' &&
+          assistant.stopReason !== 'toolUse'
         ) {
-          throw new Error('Cross-model continuation is not enabled yet.');
-        }
-
-        const native = restorePiContinuation(response.nativeContinuation, {
-          providerId: request.model.providerId,
-          modelId: request.model.modelId,
-          protocol,
-        });
-
-        if (native.stopReason !== 'stop' && native.stopReason !== 'toolUse') {
           throw new Error('Unsupported assistant continuation state.');
         }
 
         if (
-          (native.stopReason === 'toolUse') !==
+          (assistant.stopReason === 'toolUse') !==
           (response.finishReason === 'tool_use')
         ) {
-          throw new Error('Assistant continuation finish reason mismatch.');
+          throw new Error('Assistant finish reason mismatch.');
         }
 
-        const calls = native.content.filter(
+        const calls = assistant.content.filter(
           (block) => block.type === 'toolCall',
         );
 
-        if ((native.stopReason === 'toolUse') !== calls.length > 0) {
+        if ((assistant.stopReason === 'toolUse') !== calls.length > 0) {
           throw new Error('Assistant tool-call state is inconsistent.');
         }
 
         const ids = new Set<string>();
 
         pending = calls.map((call) => {
-          if (!call.id || !call.name || ids.has(call.id)) {
-            throw new Error('Invalid assistant tool-call identity.');
+          if (
+            !call.id ||
+            !call.name ||
+            call.argumentsError ||
+            ids.has(call.id)
+          ) {
+            throw new Error(
+              'Invalid assistant tool-call identity or arguments.',
+            );
           }
 
           ids.add(call.id);
@@ -118,7 +178,7 @@ export function buildPiContext(
           };
         });
 
-        messages.push(native);
+        messages.push(assistant);
         break;
       }
 
@@ -160,9 +220,11 @@ export function buildPiContext(
 
   return {
     messages,
+
     ...(request.systemPrompt === undefined
       ? {}
       : { systemPrompt: request.systemPrompt }),
+
     ...(request.tools?.length ? { tools: convertTools(request.tools) } : {}),
   };
 }
