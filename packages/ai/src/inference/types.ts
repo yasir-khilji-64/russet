@@ -3,10 +3,9 @@ export interface InferenceRequest {
     providerId: string;
     modelId: string;
   };
-  messages: readonly {
-    role: 'user';
-    text: string;
-  }[];
+  systemPrompt?: string;
+  messages: readonly ConversationMessage[];
+  tools?: readonly ModelToolDefinition[];
 }
 
 export interface InferenceOptions {
@@ -152,3 +151,49 @@ export interface NativeContinuation {
   readonly modelId: string;
   readonly protocol: string;
 }
+
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly JsonValue[]
+  | { readonly [key: string]: JsonValue };
+
+export type JsonObject = {
+  readonly [key: string]: JsonValue;
+};
+
+export interface ModelToolDefinition {
+  name: string;
+  description: string;
+  parameters: JsonObject;
+}
+
+export interface UserConversationMessage {
+  role: 'user';
+  text: string;
+  timestamp?: number;
+}
+
+export interface AssistantConversationMessage {
+  role: 'assistant';
+  response: ModelResponse;
+}
+
+export interface ToolResultConversationMessage {
+  role: 'tool_result';
+  toolCallId: string;
+  toolName: string;
+  content: readonly {
+    type: 'text';
+    text: string;
+  }[];
+  isError: boolean;
+  timestamp?: number;
+}
+
+export type ConversationMessage =
+  | UserConversationMessage
+  | AssistantConversationMessage
+  | ToolResultConversationMessage;

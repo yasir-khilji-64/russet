@@ -7,6 +7,7 @@ import type {
 import type { Models } from '@earendil-works/pi-ai/models';
 
 import { preservePiContinuation } from './continuation.js';
+import { buildPiContext } from './conversation.js';
 import {
   classifyThinking,
   getThinkingAvailability,
@@ -215,6 +216,7 @@ export function createPiInferenceEngine(
             throw new Error('Model is not registered');
           }
 
+          const context = buildPiContext(request, model.api);
           const support = getThinkingSupport?.(request.model);
           const effort = resolveThinkingEffort(options?.thinking, support);
 
@@ -222,20 +224,10 @@ export function createPiInferenceEngine(
             throw new Error('Selected Pi model does not support reasoning');
           }
 
-          const source = models.streamSimple(
-            model,
-            {
-              messages: request.messages.map((message) => ({
-                role: 'user' as const,
-                content: message.text,
-                timestamp: Date.now(),
-              })),
-            },
-            {
-              signal: controller.signal,
-              ...(effort === undefined ? {} : { reasoning: effort }),
-            },
-          );
+          const source = models.streamSimple(model, context, {
+            signal: controller.signal,
+            ...(effort === undefined ? {} : { reasoning: effort }),
+          });
 
           let started = false;
 
