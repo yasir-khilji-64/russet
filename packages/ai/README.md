@@ -1,86 +1,105 @@
 # @russet/ai
 
-**The inference foundation for a coding agent, on your terms.**
+**The model inference foundation for Russet.**
 
-`@russet/ai` is the model integration package for [Russet](https://github.com/yasir-khilji-64/russet), a minimal, extensible, workspace-aware AI terminal agent.
+`@russet/ai` provides the model communication layer for Russet, a minimal, extensible, workspace-aware AI terminal agent.
 
-Language models differ in their APIs, capabilities, reasoning behavior, authentication, and conversation formats. A dependable agent needs a consistent way to communicate with them without tying its execution logic to any particular provider.
+Models differ in their protocols, reasoning capabilities, tool-calling behavior, authentication, and conversation formats. A dependable coding agent needs a consistent way to work with them without coupling its execution logic to any particular provider.
 
-**Russet AI provides that boundary.**
+**Russet AI establishes that boundary.**
 
-Built on [Pi AI](https://github.com/earendil-works/pi/tree/main/packages/ai), the package provides provider-independent inference contracts while reusing established infrastructure for model communication, streaming, tool calling, authentication, and conversation compatibility.
-
-Its purpose is not to create another comprehensive inference SDK, but to expose the essential model capabilities through a small, predictable interface that the rest of Russet can depend on.
+Built on [Pi AI](https://github.com/earendil-works/pi/tree/main/packages/ai), the package provides a small set of Russet-owned inference contracts while reusing established provider communication and streaming infrastructure.
 
 ## Philosophy
 
 The package follows a few principles:
 
-- **Provider independence.** Model providers and their protocols should remain replaceable without redesigning the agent kernel.
-- **Minimal abstraction.** Reuse Pi AI's inference infrastructure and introduce Russet-owned contracts only where they establish meaningful boundaries.
-- **Structured streaming.** Text, thinking, and tool calls should remain distinct, observable parts of a model response.
-- **Accurate reasoning representation.** Preserve provider-supplied thinking, reasoning summaries, and native continuation information without inventing unavailable content.
-- **Reliable continuation.** Maintain portable conversation history while respecting provider-specific requirements for subsequent model requests.
-- **Explicit capabilities.** Model metadata should describe known capabilities without assuming that every provider supports identical behavior.
-- **Clear ownership.** Inference communicates model requests and responses; tool execution, permissions, and workspace authority belong elsewhere.
+- **Provider independence.** Models should remain replaceable without redesigning the agent kernel.
+- **Minimal abstraction.** Reuse Pi AI where appropriate and introduce only the contracts Russet needs.
+- **Structured streaming.** Text, thinking, tool calls, and response lifecycle events remain independently observable.
+- **Reasoning fidelity.** Preserve available provider-supplied thinking and compatible native continuation data without inventing unavailable information.
+- **Reliable continuation.** Preserve portable conversation context across model changes without forwarding incompatible reasoning state.
+- **Clear execution boundaries.** Model-generated tool requests are proposals. Validation, authorization, and execution belong to the runtime.
+- **Explicit failures.** Cancellation, incomplete responses, and provider errors should remain distinguishable and observable.
 
-The goal is a small inference layer that remains understandable as models and providers evolve.
+The goal is a predictable inference layer that remains understandable as models and providers evolve.
 
 ## Architecture
 
-`@russet/ai` owns the model-facing responsibilities of Russet:
+`@russet/ai` separates model-facing concerns into a small collection of responsibilities:
 
 | Component | Responsibility |
 |---|---|
-| **Model Registry** | Curated model definitions, identities, capabilities, and selection metadata |
-| **Provider Integration** | Provider configuration, protocol compatibility, and inference through Pi AI |
-| **Inference** | Model requests, streaming events, completed responses, and usage information |
-| **Credentials** | Authentication resolution interfaces and injectable credential storage contracts |
-| **Conversation** | Portable messages, tool-call representations, and provider-native continuation |
+| **Models** | Curated definitions, model identities, and capability metadata |
+| **Providers** | Provider-specific configuration, authentication, and Pi integration |
+| **Inference** | Model requests, streaming events, completed responses, and usage |
+| **Thinking** | Reasoning output classification and supported effort controls |
+| **Conversation** | Structured messages, tool results, and continuation |
+| **Reliability** | Cancellation, failures, partial output, and model-switching compatibility |
 
-The package exposes Russet-owned interfaces while keeping provider-specific implementation details within its inference adapter.
+The public interface is exposed through `@russet/ai`. Pi-specific implementation details remain internal to the package.
 
-It does not implement the agent execution loop, manage workspaces, execute tools, enforce permissions, render the terminal interface, or persist sessions.
-
-Tool schemas cross into the package as JSON Schema-compatible definitions. Authoritative tool validation and execution remain the responsibility of `@russet/runtime`.
-
-This separation keeps the inference layer independently testable and allows the agent kernel to operate without understanding native provider protocols.
+The package does not execute tools, enforce workspace permissions, manage agent turns, or persist application sessions.
 
 ## Models and Providers
 
-Russet AI begins with a small, curated model registry using selected metadata from [models.dev](https://models.dev).
-
-The initial proof of concept targets two deployments of GPT-OSS 20B:
+The initial supported model deployments are:
 
 | Provider | Model | Environment |
 |---|---|---|
-| Ollama | `gpt-oss:20b` | Local |
-| Groq | `openai/gpt-oss-20b` | Cloud |
+| Ollama | `gpt-oss:20b` | Local inference |
+| Groq | `openai/gpt-oss-20b` | Cloud inference |
 
-Both use OpenAI-compatible inference through Pi AI, while retaining their own provider configuration, authentication, and compatibility behavior.
+Both use OpenAI-compatible Chat Completions through Pi AI.
 
-The broader Russet MVP targets OpenAI, Anthropic, and Google Gemini.
+Ollama runs through the configured local service without requiring user-provided API credentials. Groq uses `GROQ_API_KEY` for authentication.
 
-The registry remains intentionally small. Models are introduced as their required capabilities and provider behavior are validated, without requiring a full external catalog or network-based metadata initialization during startup.
+The model registry remains intentionally small. Additional models and providers can be introduced as their compatibility is validated.
 
-## Streaming and Reasoning
+## Streaming and Continuation
 
-Russet AI is designed around incremental model responses.
+The inference engine exposes dedicated event families:
 
-Its model event contract distinguishes text, thinking, tool calls, and response lifecycle events. Each streamed block maintains a stable identity from its initial event through completion.
+- `response.*` — inference lifecycle and terminal outcomes.
+- `text.*` — streamed assistant text.
+- `thinking.*` — provider-supplied reasoning output.
+- `toolcall.*` — streamed tool-call proposals.
 
-Thinking is supported as a first-class capability. The package distinguishes readable provider-supplied reasoning, summaries, opaque continuation state, and unavailable reasoning.
+Each output block maintains a stable Russet-generated identity throughout its lifecycle.
 
-Completed responses preserve the authoritative content and metadata needed for conversation continuation.
+Completed responses preserve authoritative content, finish reasons, and available usage information.
 
-Structured tool calls are exposed as model requests, not executed operations. The agent and runtime remain responsible for validating, authorizing, and executing them.
+Conversation continuation retains native provider state when compatible and uses portable conversation content when switching models. Foreign thinking blocks and signatures are excluded from cross-model context.
+
+Tool calls are never executed by this package. Their completed arguments are exposed for independent validation and authorization.
+
+## Examples and Verification
+
+The end-to-end streaming example is available at `examples/streaming.mjs`.
+
+After building the package, run:
+
+- `node packages/ai/examples/streaming.mjs ollama` for local inference.
+- `node packages/ai/examples/streaming.mjs groq` for cloud inference.
+
+The example demonstrates streamed text and thinking, tool-call proposals, a synthetic arithmetic tool result, and conversation continuation.
+
+The package uses Vitest for deterministic and provider conformance testing. Live Ollama and Groq tests are opt-in through `RUSSET_AI_LIVE=1`.
+
+## Boundaries and Limitations
+
+Native continuation currently uses in-memory handles. It is not a durable session format and cannot be restored automatically after a process restart.
+
+Provider capabilities and reasoning controls may differ even when both providers serve the same underlying model family.
+
+Model-generated tool arguments are untrusted. Schema validation, workspace restrictions, permissions, and execution remain outside `@russet/ai`.
+
+Automatic provider fallback, persistent credential management, and agent orchestration are not part of this package's initial foundation.
 
 ## Built to Evolve
 
-Russet AI is developed with TypeScript and Node.js as part of the pnpm-based Russet monorepo.
+Russet AI is implemented in TypeScript with native Node.js ESM and maintained as part of the Russet pnpm monorepo.
 
-The initial implementation focuses on Linux and macOS, with Vitest providing deterministic and provider-level conformance testing.
+Its architecture favors explicit interfaces, deterministic tests, and incremental provider compatibility over unnecessary inference infrastructure.
 
-As additional model providers are introduced, the package should evolve through focused compatibility improvements rather than unnecessary transport implementations or abstraction layers.
-
-**The model should remain replaceable. The contract between inference and the agent should remain dependable.**
+**Models will keep changing. The boundary between inference and the agent should remain dependable.**
