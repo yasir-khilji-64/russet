@@ -19,3 +19,6 @@ export type {
 } from './inference/types.js';
 
 export { getCompletedToolCalls } from './inference/tools.js';
+
+export { createInferenceEngine } from './inference/create.js';
+export type { InferenceEngineConfig } from './inference/create.js';
