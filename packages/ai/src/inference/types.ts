@@ -11,6 +11,7 @@ export interface InferenceRequest {
 
 export interface InferenceOptions {
   signal?: AbortSignal;
+  thinking?: ThinkingOptions;
 }
 
 export type FinishReason =
@@ -22,6 +23,19 @@ export type FinishReason =
   | 'unsupported';
 
 export type ThinkingVisibility = 'visible' | 'summary' | 'opaque' | 'unknown';
+
+export type ThinkingEffort = 'low' | 'medium' | 'high';
+
+export type ThinkingAvailability = 'available' | 'unavailable';
+
+export interface ThinkingOptions {
+  effort?: ThinkingEffort;
+}
+
+export interface ThinkingSupport {
+  available: boolean;
+  supportedEfforts: readonly ThinkingEffort[];
+}
 
 export interface ModelToolCall {
   toolCallId: string;
@@ -39,7 +53,7 @@ export type ModelBlock =
       id: string;
       type: 'thinking';
       visibility: ThinkingVisibility;
-      text: string;
+      text?: string;
     }
   | {
       id: string;
@@ -53,6 +67,8 @@ export interface ModelResponse {
   model: InferenceRequest['model'];
   finishReason: FinishReason;
   blocks: readonly ModelBlock[];
+  thinkingAvailability?: ThinkingAvailability;
+  nativeContinuation?: NativeContinuation;
   usage?: {
     inputTokens: number;
     outputTokens: number;
@@ -100,7 +116,7 @@ export type ModelEvent =
   | (BlockEventIdentity & {
       type: 'thinking.completed';
       visibility: ThinkingVisibility;
-      text: string;
+      text?: string;
     })
   | (BlockEventIdentity & {
       type: 'toolcall.started';
@@ -128,4 +144,11 @@ export interface ModelStream extends AsyncIterable<ModelEvent> {
 
 export interface InferenceEngine {
   stream(request: InferenceRequest, options?: InferenceOptions): ModelStream;
+}
+
+export interface NativeContinuation {
+  readonly format: 'pi-ai/in-memory-v1';
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly protocol: string;
 }

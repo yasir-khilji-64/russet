@@ -6,6 +6,12 @@ import type {
 } from '@earendil-works/pi-ai';
 import type { Models } from '@earendil-works/pi-ai/models';
 
+import { preservePiContinuation } from './continuation.js';
+import {
+  classifyThinking,
+  getThinkingAvailability,
+  resolveThinkingEffort,
+} from './thinking.js';
 import type {
   InferenceEngine,
   InferenceOptions,
@@ -15,7 +21,7 @@ import type {
   ModelResponse,
   ModelStream,
   ModelToolCall,
-  ThinkingVisibility,
+  ThinkingSupport,
 } from './types.js';
 
 type PiModels = Pick<Models, 'getModel' | 'streamSimple'>;
@@ -26,16 +32,6 @@ interface ActiveBlock {
   id: string;
   kind: BlockKind;
   ended: boolean;
-}
-
-function thinkingVisibility(
-  content: Extract<AssistantMessage['content'][number], { type: 'thinking' }>,
-): ThinkingVisibility {
-  if (content.redacted) {
-    return 'opaque';
-  }
-
-  return content.thinking ? 'visible' : 'unknown';
 }
 
 function normalizeFinishedResponse(
@@ -63,11 +59,13 @@ function normalizeFinishedResponse(
     }
 
     if (content.type === 'thinking') {
+      const visibility = classifyThinking(content);
+
       return {
         id: state.id,
         type: 'thinking',
-        visibility: thinkingVisibility(content),
-        text: content.redacted ? '' : content.thinking,
+        visibility,
+        ...(visibility === 'visible' ? { text: content.thinking } : {}),
       };
     }
 
@@ -81,6 +79,11 @@ function normalizeFinishedResponse(
       },
     };
   });
+
+  const thinkingBlocks = final.content.filter(
+    (block) => block.type === 'thinking',
+  );
+  const thinkingAvailability = getThinkingAvailability(thinkingBlocks);
 
   const finishReason =
     final.stopReason === 'toolUse'
@@ -97,6 +100,8 @@ function normalizeFinishedResponse(
     model: { ...request.model },
     finishReason,
     blocks,
+    thinkingAvailability,
+    nativeContinuation: preservePiContinuation(final),
     usage: {
       inputTokens: final.usage.input,
       outputTokens: final.usage.output,
@@ -131,6 +136,9 @@ function failedResponse(
 export function createPiInferenceEngine(
   models: PiModels,
   createId: () => string = randomUUID,
+  getThinkingSupport?: (
+    model: InferenceRequest['model'],
+  ) => ThinkingSupport | undefined,
 ): InferenceEngine {
   return {
     stream(request: InferenceRequest, options?: InferenceOptions): ModelStream {
@@ -207,6 +215,13 @@ export function createPiInferenceEngine(
             throw new Error('Model is not registered');
           }
 
+          const support = getThinkingSupport?.(request.model);
+          const effort = resolveThinkingEffort(options?.thinking, support);
+
+          if (effort !== undefined && !model.reasoning) {
+            throw new Error('Selected Pi model does not support reasoning');
+          }
+
           const source = models.streamSimple(
             model,
             {
@@ -216,7 +231,10 @@ export function createPiInferenceEngine(
                 timestamp: Date.now(),
               })),
             },
-            { signal: controller.signal },
+            {
+              signal: controller.signal,
+              ...(effort === undefined ? {} : { reasoning: effort }),
+            },
           );
 
           let started = false;
@@ -321,7 +339,7 @@ export function createPiInferenceEngine(
 
                 const visibility =
                   content?.type === 'thinking'
-                    ? thinkingVisibility(content)
+                    ? classifyThinking(content)
                     : 'unknown';
 
                 yield {
@@ -329,7 +347,7 @@ export function createPiInferenceEngine(
                   blockId: block.id,
                   type: 'thinking.completed',
                   visibility,
-                  text: visibility === 'opaque' ? '' : event.content,
+                  ...(visibility === 'visible' ? { text: event.content } : {}),
                 };
                 break;
               }
