@@ -1,4 +1,4 @@
-const x: string = 'Hello, world!';
+const x: string = 'Hello, Russet!';
 
 // oxlint-disable-next-line no-console
 console.log(x);
