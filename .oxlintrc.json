@@ -17,12 +17,7 @@
     "**/*.tsbuildinfo"
   ],
   "rules": {
-    "oxfmt/format": [
-      "error",
-      {
-        "configPath": ".oxfmtrc.json"
-      }
-    ],
+    "oxfmt/format": "error",
     "no-console": "warn",
     "no-debugger": "error",
     "eqeqeq": ["error", "always"],

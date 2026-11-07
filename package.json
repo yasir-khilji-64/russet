@@ -4,7 +4,16 @@
   "description": "A coding agent, on your terms.",
   "type": "module",
   "private": true,
-  "scripts": {},
+  "scripts": {
+    "clean": "pnpm -r run clean",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "pnpm -r run lint",
+    "format": "pnpm -r run format",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
   "keywords": [
     "coding agent",
     "AI",

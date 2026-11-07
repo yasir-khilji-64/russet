@@ -1,0 +1,228 @@
+export interface ModelId {
+  providerId: string;
+  modelId: string;
+}
+
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | JsonObject;
+
+export interface JsonObject {
+  [key: string]: JsonValue;
+}
+
+export interface ModelToolDefinition {
+  name: string;
+  description: string;
+  parameters: JsonObject;
+}
+
+export interface ModelToolCall {
+  toolCallId: string;
+  name: string;
+  arguments: unknown;
+  argumentsError?: string;
+}
+
+export type ThinkingEffort = 'low' | 'medium' | 'high';
+
+export interface ThinkingOptions {
+  effort?: ThinkingEffort;
+}
+
+export interface ThinkingSupport {
+  available: boolean;
+  supportedEfforts: readonly ThinkingEffort[];
+}
+
+export type ThinkingVisibility = 'visible' | 'summary' | 'opaque' | 'unknown';
+
+export type ThinkingAvailability = 'available' | 'unavailable';
+
+export interface NativeContinuation {
+  readonly format: 'pi-ai/in-memory-v1';
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly protocol: string;
+}
+
+export type FinishReason =
+  | 'stop'
+  | 'tool_use'
+  | 'length'
+  | 'aborted'
+  | 'error'
+  | 'unsupported';
+
+export interface ModelUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+  totalCostUsd?: number;
+  costSource?: 'provider_reported' | 'catalog_estimate' | 'unknown';
+}
+
+export type InferenceFailureCode =
+  | 'model_not_found'
+  | 'invalid_context'
+  | 'unsupported_capability'
+  | 'provider_error'
+  | 'invalid_response'
+  | 'cancelled'
+  | 'timeout'
+  | 'stream_closed'
+  | 'internal_error';
+
+export interface InferenceFailure {
+  code: InferenceFailureCode;
+  message: string;
+  retryable: boolean;
+}
+
+export interface TextBlock {
+  id: string;
+  type: 'text';
+  text: string;
+}
+
+export interface ThinkingBlock {
+  id: string;
+  type: 'thinking';
+  visibility: ThinkingVisibility;
+  text?: string;
+}
+
+export interface ToolCallBlock {
+  id: string;
+  type: 'toolcall';
+  toolCall: ModelToolCall;
+}
+
+export type ModelBlock = TextBlock | ThinkingBlock | ToolCallBlock;
+
+export interface ModelResponse {
+  requestId: string;
+  messageId: string;
+  model: ModelId;
+  finishReason: FinishReason;
+  blocks: readonly ModelBlock[];
+  thinkingAvailability: ThinkingAvailability;
+
+  protocol?: string;
+  timestamp?: number;
+  usage?: ModelUsage;
+  nativeContinuation?: NativeContinuation;
+  failure?: InferenceFailure;
+}
+
+export interface UserConversationMessage {
+  role: 'user';
+  text: string;
+  timestamp?: number;
+}
+
+export interface AssistantConversationMessage {
+  role: 'assistant';
+  response: ModelResponse;
+}
+
+export interface ToolResultConversationMessage {
+  role: 'tool_result';
+  toolCallId: string;
+  toolName: string;
+  content: readonly {
+    type: 'text';
+    text: string;
+  }[];
+  isError: boolean;
+  timestamp?: number;
+}
+
+export type ConversationMessage =
+  | UserConversationMessage
+  | AssistantConversationMessage
+  | ToolResultConversationMessage;
+
+export interface InferenceRequest {
+  model: ModelId;
+  systemPrompt?: string;
+  messages: readonly ConversationMessage[];
+  tools?: readonly ModelToolDefinition[];
+}
+
+export interface InferenceOptions {
+  signal?: AbortSignal;
+  thinking?: ThinkingOptions;
+}
+
+interface EventIdentity {
+  requestId: string;
+  messageId: string;
+}
+
+interface BlockEventIdentity extends EventIdentity {
+  blockId: string;
+}
+
+export type ModelEvent =
+  | (EventIdentity & {
+      type: 'response.started';
+    })
+  | (BlockEventIdentity & {
+      type: 'text.started';
+    })
+  | (BlockEventIdentity & {
+      type: 'text.delta';
+      delta: string;
+    })
+  | (BlockEventIdentity & {
+      type: 'text.completed';
+      text: string;
+    })
+  | (BlockEventIdentity & {
+      type: 'thinking.started';
+      visibility: ThinkingVisibility;
+    })
+  | (BlockEventIdentity & {
+      type: 'thinking.delta';
+      delta: string;
+    })
+  | (BlockEventIdentity & {
+      type: 'thinking.completed';
+      visibility: ThinkingVisibility;
+      text?: string;
+    })
+  | (BlockEventIdentity & {
+      type: 'toolcall.started';
+    })
+  | (BlockEventIdentity & {
+      type: 'toolcall.arguments.delta';
+      delta: string;
+    })
+  | (BlockEventIdentity & {
+      type: 'toolcall.completed';
+      toolCall: ModelToolCall;
+    })
+  | (EventIdentity & {
+      type: 'response.completed';
+      response: ModelResponse;
+    })
+  | (EventIdentity & {
+      type: 'response.failed';
+      response: ModelResponse;
+    });
+
+export interface ModelStream extends AsyncIterable<ModelEvent> {
+  result(): Promise<ModelResponse>;
+}
+
+export interface InferenceEngine {
+  stream(request: InferenceRequest, options?: InferenceOptions): ModelStream;
+}

@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    projects: [],
+    projects: ['packages/*/vitest.config.ts'],
     reporters: [
       'default',
       ['junit', { outputFile: './.artifacts/vitest/junit.xml' }],

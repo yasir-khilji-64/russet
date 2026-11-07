@@ -1,5 +1,10 @@
+packages:
+  - 'packages/*'
+
 allowBuilds:
+  '@google/genai': false
   esbuild: false
+  protobufjs: false
   unrs-resolver: false
 
 minimumReleaseAge: 7200
