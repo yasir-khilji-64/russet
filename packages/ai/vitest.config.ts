@@ -14,6 +14,6 @@ export default defineProject({
     retry: 0,
     testTimeout: 5_000,
     hookTimeout: 10_000,
-    include: ['test/**/*.spec.ts'],
+    include: ['tests/**/*.spec.ts'],
   },
 });
