@@ -4,7 +4,7 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "test/**/*.spec.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.spec.ts"],
   "exclude": ["node_modules", "dist", "coverage"],
   "references": [
     { "path": "../ai/tsconfig.build.json" }
