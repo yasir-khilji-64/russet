@@ -34,3 +34,13 @@ export type {
   WorkspacePolicyOptions,
   WorkspaceResourceKind,
 } from './policy/types.js';
+
+export { loadWorkspaceInstructions } from './context/instructions.js';
+
+export { InstructionLoadError } from './context/types.js';
+export type {
+  InstructionErrorCode,
+  InstructionSource,
+  InstructionTarget,
+  WorkspaceInstructions,
+} from './context/types.js';
