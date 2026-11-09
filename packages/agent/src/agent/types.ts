@@ -9,9 +9,23 @@ import type {
 import type { AgentEventListener, AgentRunPhase } from '../events/types.js';
 import type { ToolExecutionGateway } from '../tools/types.js';
 
+export interface AgentContextRequest {
+  readonly runId: string;
+  readonly modelRequestOrdinal: number;
+  readonly model: Readonly<ModelId>;
+  readonly conversation: readonly ConversationMessage[];
+  readonly signal: AbortSignal;
+}
+
+export interface PreparedAgentContext {
+  readonly instructions: string;
+  readonly revision: string;
+}
+
 export interface AgentOptions {
   inference: InferenceEngine;
   toolGateway?: ToolExecutionGateway;
+  contextProvider?: AgentContextProvider;
 }
 
 export interface AgentExecutionLimits {
@@ -37,6 +51,10 @@ export type AgentRunStatus =
   | 'interrupted';
 
 export type AgentRunFailure =
+  | {
+      kind: 'context_preparation_error';
+      message: string;
+    }
   | {
       kind: 'inference';
       failure: InferenceFailure;
@@ -89,6 +107,10 @@ export type AgentRunState =
       readonly kind: 'finished';
       readonly result: AgentRunResult;
     };
+
+export interface AgentContextProvider {
+  prepare(request: AgentContextRequest): Promise<PreparedAgentContext>;
+}
 
 export interface AgentRun {
   readonly id: string;
