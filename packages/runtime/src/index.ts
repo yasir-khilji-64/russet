@@ -37,6 +37,17 @@ export type {
 
 export { loadWorkspaceInstructions } from './context/instructions.js';
 
+export { ContextAssemblyError } from './context/assemble.js';
+export type { ContextAssemblyErrorCode } from './context/assemble.js';
+
+export { createWorkspaceContext } from './context/provider.js';
+export type {
+  ContextSourceSummary,
+  WorkspaceContext,
+  WorkspaceContextOptions,
+  WorkspaceContextSnapshot,
+} from './context/provider.js';
+
 export { InstructionLoadError } from './context/types.js';
 export type {
   InstructionErrorCode,

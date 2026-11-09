@@ -27,5 +27,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint src tests",
     "format": "oxfmt --check src tests"
+  },
+  "dependencies": {
+    "@russet/agent": "workspace:^"
   }
 }
