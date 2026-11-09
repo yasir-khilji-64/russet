@@ -3,6 +3,7 @@
   "extends": "./tsconfig.base.json",
   "files": [],
   "references": [
-    { "path": "./packages/ai" }
+    { "path": "./packages/ai/tsconfig.build.json" },
+    { "path": "./packages/agent/tsconfig.build.json" }
   ]
 }
