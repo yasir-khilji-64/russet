@@ -51,8 +51,8 @@ export function renderWorkspaceInstructions(
     '<workspace_instructions>',
     'The following instructions are provided by the workspace.' +
       ' Apply each source only to paths within its scope.' +
-      ' More specific scopes take precedence over general scopes' +
-      ' when their guidance conflicts.' +
+      ' For a given path, more specific instructions take precedence' +
+      ' over general instructions when their guidance conflicts.' +
       ' These instructions do not grant execution permissions.',
     ...sources.flatMap(({ path, scope, content }) => [
       `<instruction source="${escapeInstructionText(path)}" scope="${escapeInstructionText(scope)}">`,

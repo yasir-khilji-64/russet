@@ -50,6 +50,9 @@ importers:
       '@russet/agent':
         specifier: workspace:^
         version: link:../agent
+      typebox:
+        specifier: ^1.4.4
+        version: 1.4.4
 
 packages:
 
@@ -1081,6 +1084,9 @@ packages:
 
   tslib@2.9.1:
     resolution: {integrity: sha512-a4Ux9VKuIMHsOS7ENbEq6hK2ZGYIT27Rtl0E4eD9KqwxhKiQeMZE/9xb3IdYwWaSOyIBQLExhQgXDTYoiCxnWA==}
+
+  typebox@1.4.4:
+    resolution: {integrity: sha512-ctPyL8BZibv6HYU6cE3ldDtfCTh7nXM7WPuL3KQVyRRhMnZEzU3o2yLVywxEEFmKEx+8EdeqG1/uTNzazRbxLA==}
 
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
@@ -2128,6 +2134,8 @@ snapshots:
   ts-algebra@2.0.0: {}
 
   tslib@2.9.1: {}
+
+  typebox@1.4.4: {}
 
   typescript@5.9.3: {}
 

@@ -55,3 +55,16 @@ export type {
   InstructionTarget,
   WorkspaceInstructions,
 } from './context/types.js';
+
+export { createToolRegistry, defineRuntimeTool } from './tools/registry.js';
+
+export { createRuntimeGateway } from './tools/gateway.js';
+export type { RuntimeGatewayOptions } from './tools/gateway.js';
+
+export type {
+  RegisteredRuntimeTool,
+  RuntimeTool,
+  RuntimeToolContext,
+  RuntimeToolRegistry,
+  RuntimeToolTarget,
+} from './tools/types.js';

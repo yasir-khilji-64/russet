@@ -29,6 +29,7 @@
     "format": "oxfmt --check src tests"
   },
   "dependencies": {
-    "@russet/agent": "workspace:^"
+    "@russet/agent": "workspace:^",
+    "typebox": "^1.4.4"
   }
 }
