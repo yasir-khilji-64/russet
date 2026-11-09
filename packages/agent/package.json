@@ -25,8 +25,8 @@
     "clean": "tsc --build tsconfig.build.json --clean",
     "build": "tsc --build tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint src test examples",
-    "format": "oxfmt --check src test examples"
+    "lint": "oxlint src tests examples",
+    "format": "oxfmt --check src tests examples"
   },
   "dependencies": {
     "@russet/ai": "workspace:^"

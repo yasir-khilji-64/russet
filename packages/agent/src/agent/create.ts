@@ -14,6 +14,7 @@ import type { AgentEventListener } from '../events/types.js';
 import { listToolsUntilCancelled } from '../tools/cancellation.js';
 import { executeToolBatch } from '../tools/execute.js';
 import type { ToolExecutionGateway } from '../tools/types.js';
+import { prepareContextUntilCancelled } from './context.js';
 import { snapshotConversation } from './conversation.js';
 import { resolveAgentExecutionLimits } from './limits.js';
 import { isExpectedModelResponse } from './response.js';
@@ -21,6 +22,7 @@ import type { AgentRunController } from './run.js';
 import { AgentRunManager } from './run.js';
 import type {
   Agent,
+  AgentContextProvider,
   AgentExecutionLimits,
   AgentOptions,
   AgentRun,
@@ -36,6 +38,7 @@ interface AgentState {
 class AgentKernel implements Agent {
   private readonly inference: InferenceEngine;
   private readonly toolGateway: ToolExecutionGateway | undefined;
+  private readonly contextProvider: AgentContextProvider | undefined;
   private readonly runs = new AgentRunManager();
 
   private readonly state: AgentState = {
@@ -47,6 +50,7 @@ class AgentKernel implements Agent {
   constructor(options: AgentOptions) {
     this.inference = options.inference;
     this.toolGateway = options.toolGateway;
+    this.contextProvider = options.contextProvider;
   }
 
   start(request: AgentRunRequest, onEvent?: AgentEventListener): AgentRun {
@@ -195,15 +199,73 @@ class AgentKernel implements Agent {
         return;
       }
 
+      const conversation =
+        pendingUserMessage === undefined
+          ? [...this.state.conversation]
+          : [...this.state.conversation, pendingUserMessage];
+
+      let systemPrompt = initialRequest.systemPrompt;
+
+      if (this.contextProvider !== undefined) {
+        try {
+          const prepared = await prepareContextUntilCancelled(
+            this.contextProvider,
+            {
+              runId: run.id,
+              modelRequestOrdinal: modelRequests + 1,
+              model: Object.freeze({ ...initialRequest.model }),
+              conversation: snapshotConversation(conversation),
+              signal: run.signal,
+            },
+          );
+
+          if (
+            typeof prepared.instructions !== 'string' ||
+            typeof prepared.revision !== 'string' ||
+            prepared.instructions.trim().length === 0
+          ) {
+            throw new Error('Invalid prepared agent context');
+          }
+
+          if (prepared.instructions.length > 0) {
+            systemPrompt =
+              systemPrompt === undefined || systemPrompt.length === 0
+                ? prepared.instructions
+                : `${systemPrompt}\n\n${prepared.instructions}`;
+          }
+
+          if (run.signal.aborted) {
+            run.finish('cancelled');
+            return;
+          }
+
+          run.publish({
+            type: 'model.context.prepared',
+            ordinal: modelRequests + 1,
+            revision: prepared.revision,
+          });
+        } catch {
+          if (run.signal.aborted) {
+            run.finish('cancelled');
+          } else {
+            run.finish('failed', {
+              kind: 'context_preparation_error',
+              message: 'The agent could not prepare its inference context.',
+            });
+          }
+          return;
+        }
+      }
+
+      if (run.signal.aborted) {
+        run.finish('cancelled');
+        return;
+      }
+
       const inferenceRequest: InferenceRequest = {
         model: initialRequest.model,
-        messages:
-          pendingUserMessage === undefined
-            ? [...this.state.conversation]
-            : [...this.state.conversation, pendingUserMessage],
-        ...(initialRequest.systemPrompt === undefined
-          ? {}
-          : { systemPrompt: initialRequest.systemPrompt }),
+        messages: conversation,
+        ...(systemPrompt === undefined ? {} : { systemPrompt }),
         ...(tools === undefined ? {} : { tools }),
       };
 

@@ -2,6 +2,8 @@ export { createAgent } from './agent/create.js';
 
 export type {
   Agent,
+  AgentContextProvider,
+  AgentContextRequest,
   AgentOptions,
   AgentExecutionLimits,
   AgentRun,
@@ -10,6 +12,7 @@ export type {
   AgentRunResult,
   AgentRunState,
   AgentRunStatus,
+  PreparedAgentContext,
 } from './agent/types.js';
 
 export type {

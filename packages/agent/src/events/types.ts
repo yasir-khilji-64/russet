@@ -50,6 +50,11 @@ export type AgentEventPayload =
       readonly reason: 'stream_error';
     }
   | {
+      readonly type: 'model.context.prepared';
+      readonly ordinal: number;
+      readonly revision: string;
+    }
+  | {
       readonly type: 'tool.proposed';
       readonly toolCallId: string;
       readonly name: string;

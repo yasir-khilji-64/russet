@@ -115,17 +115,28 @@ function toToolResult(
   call: ModelToolCall,
   result: ToolExecutionResult,
 ): ToolResultConversationMessage {
+  const content: { type: 'text'; text: string }[] =
+    result.status === 'success'
+      ? result.content.map((block) => ({
+          type: 'text',
+          text: block.text,
+        }))
+      : [{ type: 'text', text: result.message }];
+
+  if (result.status === 'success' && result.truncated === true) {
+    content.push({
+      type: 'text',
+      text:
+        '[Russet notice: Tool output was truncated. ' +
+        'The returned content is incomplete.]',
+    });
+  }
+
   return {
     role: 'tool_result',
     toolCallId: call.toolCallId,
     toolName: call.name,
-    content:
-      result.status === 'success'
-        ? result.content.map((block) => ({
-            type: 'text',
-            text: block.text,
-          }))
-        : [{ type: 'text', text: result.message }],
+    content,
     isError: result.status !== 'success',
     timestamp: Date.now(),
   };
