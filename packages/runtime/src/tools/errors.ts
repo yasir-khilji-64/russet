@@ -4,3 +4,10 @@ export class ManagedToolError extends Error {
     this.name = 'ManagedToolError';
   }
 }
+
+export class WritePreconditionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WritePreconditionError';
+  }
+}

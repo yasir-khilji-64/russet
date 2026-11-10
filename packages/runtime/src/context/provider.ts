@@ -48,6 +48,7 @@ export interface WorkspaceContextOptions {
 export interface WorkspaceContext extends AgentContextProvider {
   setRelevantTargets(targets: readonly InstructionTarget[]): void;
   inspectLastPrepared(): WorkspaceContextSnapshot | undefined;
+  inspectPreparedForRun(runId: string): WorkspaceContextSnapshot | undefined;
 }
 
 function defaultTargets(): readonly InstructionTarget[] {
@@ -131,6 +132,13 @@ class WorkspaceContextImpl implements WorkspaceContext {
 
   private lastSnapshot: WorkspaceContextSnapshot | undefined;
 
+  private preparedRun:
+    | {
+        readonly runId: string;
+        readonly snapshot: WorkspaceContextSnapshot;
+      }
+    | undefined;
+
   constructor(options: WorkspaceContextOptions) {
     this.workspace = options.workspace;
     this.policy = options.policy;
@@ -158,6 +166,12 @@ class WorkspaceContextImpl implements WorkspaceContext {
 
   inspectLastPrepared(): WorkspaceContextSnapshot | undefined {
     return this.lastSnapshot;
+  }
+
+  inspectPreparedForRun(runId: string): WorkspaceContextSnapshot | undefined {
+    return this.preparedRun?.runId === runId
+      ? this.preparedRun.snapshot
+      : undefined;
   }
 
   async prepare(request: AgentContextRequest): Promise<PreparedAgentContext> {
@@ -289,12 +303,18 @@ class WorkspaceContextImpl implements WorkspaceContext {
       ),
     );
 
-    this.lastSnapshot = Object.freeze({
+    const snapshot: WorkspaceContextSnapshot = Object.freeze({
       revision,
       targets: uniqueTargets,
       sources: sourceSummaries,
       renderedBytes,
     });
+
+    this.lastSnapshot = snapshot;
+    this.preparedRun = {
+      runId: request.runId,
+      snapshot: this.lastSnapshot,
+    };
 
     return { instructions, revision };
   }

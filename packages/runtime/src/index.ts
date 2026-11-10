@@ -35,10 +35,22 @@ export type {
   WorkspaceResourceKind,
 } from './policy/types.js';
 
+export type {
+  ApprovalBroker,
+  ApprovalOutcome,
+  ApprovalRequest,
+} from './approvals/once.js';
+
 export { loadWorkspaceInstructions } from './context/instructions.js';
 
 export { ContextAssemblyError } from './context/assemble.js';
 export type { ContextAssemblyErrorCode } from './context/assemble.js';
+
+export { createMutationContextGuard } from './context/mutation.js';
+export type {
+  MutationContextGuard,
+  MutationContextGuardOptions,
+} from './context/mutation.js';
 
 export { createWorkspaceContext } from './context/provider.js';
 export type {
@@ -65,6 +77,8 @@ export type { RuntimeGatewayOptions } from './tools/gateway.js';
 
 export { createManagedReadTools } from './tools/builtins/index.js';
 export type { ManagedReadToolsOptions } from './tools/builtins/index.js';
+export { createManagedWriteTools } from './tools/builtins/write.js';
+export type { ManagedWriteToolsOptions } from './tools/builtins/write.js';
 
 export type {
   RegisteredRuntimeTool,

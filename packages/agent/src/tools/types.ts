@@ -58,6 +58,7 @@ export type ToolExecutionResult =
         | 'invalid_arguments'
         | 'permission_denied'
         | 'approval_unavailable'
+        | 'context_refresh_required'
         | 'approval_expired';
       readonly message: string;
     }

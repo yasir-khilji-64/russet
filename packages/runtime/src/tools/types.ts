@@ -31,6 +31,8 @@ export interface RuntimeTool<TArguments extends object> {
   readonly action: WorkspaceFileAction;
   readonly parameters: ReturnType<typeof Type.Object>;
   readonly failureSideEffects?: 'none' | 'possible';
+  readonly requiresRead?: boolean;
+  readonly requiresPreparedContext?: boolean;
 
   target(arguments_: Readonly<TArguments>): RuntimeToolTarget;
   execute(
@@ -44,6 +46,8 @@ export interface RegisteredRuntimeTool {
   readonly action: WorkspaceFileAction;
   readonly modelDefinition: ModelToolDefinition;
   readonly failureSideEffects: 'none' | 'possible';
+  readonly requiresRead: boolean;
+  readonly requiresPreparedContext: boolean;
 
   validate(input: unknown): Readonly<Record<string, unknown>> | undefined;
   target(arguments_: Readonly<Record<string, unknown>>): RuntimeToolTarget;

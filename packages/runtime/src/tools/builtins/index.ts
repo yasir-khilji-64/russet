@@ -7,6 +7,7 @@ import type { Workspace } from '../../workspace/types.js';
 import { ManagedToolError } from '../errors.js';
 import { defineRuntimeTool } from '../registry.js';
 import type { RegisteredRuntimeTool } from '../types.js';
+import { textSha256 } from './mutate.js';
 import { readWorkspaceText, UnsupportedTextFileError } from './text.js';
 import { discoverWorkspaceEntries } from './walk.js';
 
@@ -115,6 +116,7 @@ function renderRead(
   const output = [
     `File: ${JSON.stringify(path)}`,
     `Lines: ${startLine}-${startLine + selected.length - 1} of ${lines.length}`,
+    `SHA-256: ${textSha256(text)}`,
     '',
     ...selected.map(
       (line, index) =>

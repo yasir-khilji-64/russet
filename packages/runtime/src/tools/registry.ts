@@ -65,6 +65,20 @@ export function defineRuntimeTool<TArguments extends object>(
     throw new TypeError('Invalid failure side-effect classification');
   }
 
+  if (
+    definition.requiresRead !== undefined &&
+    typeof definition.requiresRead !== 'boolean'
+  ) {
+    throw new TypeError('Invalid read requirement.');
+  }
+
+  if (
+    definition.requiresPreparedContext !== undefined &&
+    typeof definition.requiresPreparedContext !== 'boolean'
+  ) {
+    throw new TypeError('Invalid context requirement.');
+  }
+
   const parameters = JSON.parse(
     JSON.stringify(definition.parameters),
   ) as ReturnType<typeof Type.Object>;
@@ -91,6 +105,8 @@ export function defineRuntimeTool<TArguments extends object>(
     action: definition.action,
     modelDefinition,
     failureSideEffects: definition.failureSideEffects ?? 'possible',
+    requiresRead: definition.requiresRead ?? false,
+    requiresPreparedContext: definition.requiresPreparedContext ?? false,
 
     validate(input: unknown) {
       const args = normalizeToolArguments(input);

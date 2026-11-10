@@ -131,6 +131,7 @@ export async function readWorkspaceText(
     try {
       return new TextDecoder('utf-8', {
         fatal: true,
+        ignoreBOM: true,
       }).decode(bytes);
     } catch {
       throw new UnsupportedTextFileError('invalid_encoding');
