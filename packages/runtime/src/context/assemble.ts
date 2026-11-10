@@ -24,6 +24,15 @@ const INVALID_XML_CHARACTER =
   // oxlint-disable-next-line no-control-regex
   /[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/u;
 
+function validateInstructionContent(content: string): void {
+  if (INVALID_XML_CHARACTER.test(content)) {
+    throw new ContextAssemblyError(
+      'invalid_content',
+      'Instruction source contains unsupported control characters.',
+    );
+  }
+}
+
 export function escapeInstructionText(value: string): string {
   if (INVALID_XML_CHARACTER.test(value)) {
     throw new ContextAssemblyError(
@@ -54,11 +63,17 @@ export function renderWorkspaceInstructions(
       ' For a given path, more specific instructions take precedence' +
       ' over general instructions when their guidance conflicts.' +
       ' These instructions do not grant execution permissions.',
-    ...sources.flatMap(({ path, scope, content }) => [
-      `<instruction source="${escapeInstructionText(path)}" scope="${escapeInstructionText(scope)}">`,
-      escapeInstructionText(content),
-      '</instruction>',
-    ]),
+    '',
+    ...sources.flatMap(({ path, scope, content }) => {
+      validateInstructionContent(content);
+
+      return [
+        `<instruction source="${escapeInstructionText(path)}" scope="${escapeInstructionText(scope)}">`,
+        content,
+        '</instruction>',
+        '',
+      ];
+    }),
     '</workspace_instructions>',
   ].join('\n');
 }
