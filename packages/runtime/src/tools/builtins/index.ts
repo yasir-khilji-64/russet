@@ -15,7 +15,7 @@ const MAX_OUTPUT_BYTES = 48 * 1024;
 const MAX_DISPLAYED_ENTRIES = 120;
 const MAX_SEARCHED_FILES = 120;
 const MAX_SEARCH_MATCHES = 80;
-const MAX_READ_LINES = 120;
+const MAX_READ_LINES = 200;
 
 export interface ManagedReadToolsOptions {
   readonly workspace: Workspace;
@@ -41,12 +41,40 @@ interface SearchArguments {
   mode: 'path' | 'content';
 }
 
+const workspaceFilePath = Type.String({
+  minLength: 1,
+  description:
+    'Nonempty file path relative to the workspace root. ' +
+    'Absolute paths are not supported.',
+});
+
+const workspaceDirectoryPath = Type.String({
+  minLength: 1,
+  description:
+    'Directory path relative to the workspace root. ' +
+    'Use "." for the workspace root.',
+});
+
 const ReadParameters = Type.Object(
   {
-    path: Type.String({ minLength: 1 }),
-    startLine: Type.Optional(Type.Integer({ minimum: 1, maximum: 100_000 })),
+    path: workspaceFilePath,
+
+    startLine: Type.Optional(
+      Type.Integer({
+        minimum: 1,
+        maximum: 100_000,
+        description: 'First line to read, starting from 1. Defaults to 1.',
+      }),
+    ),
+
     maxLines: Type.Optional(
-      Type.Integer({ minimum: 1, maximum: MAX_READ_LINES }),
+      Type.Integer({
+        minimum: 1,
+        maximum: MAX_READ_LINES,
+        description:
+          `Maximum lines to return (1-${MAX_READ_LINES}). ` +
+          'Omit to use the default.',
+      }),
     ),
   },
   { additionalProperties: false },
@@ -54,17 +82,33 @@ const ReadParameters = Type.Object(
 
 const ListParameters = Type.Object(
   {
-    path: Type.String({ minLength: 1 }),
-    recursive: Type.Optional(Type.Boolean()),
+    path: workspaceDirectoryPath,
+
+    recursive: Type.Optional(
+      Type.Boolean({
+        description:
+          'Whether to include nested directories. Defaults to false.',
+      }),
+    ),
   },
   { additionalProperties: false },
 );
 
 const SearchParameters = Type.Object(
   {
-    path: Type.String({ minLength: 1 }),
-    query: Type.String({ minLength: 1, maxLength: 128 }),
-    mode: Type.Union([Type.Literal('path'), Type.Literal('content')]),
+    path: workspaceDirectoryPath,
+
+    query: Type.String({
+      minLength: 1,
+      maxLength: 128,
+      description: 'Literal text to find, ignoring case.',
+    }),
+
+    mode: Type.Union([Type.Literal('path'), Type.Literal('content')], {
+      description:
+        '"path" matches file and directory paths; ' +
+        '"content" searches text inside permitted files.',
+    }),
   },
   { additionalProperties: false },
 );

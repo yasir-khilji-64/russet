@@ -50,6 +50,9 @@ importers:
       '@russet/agent':
         specifier: workspace:^
         version: link:../agent
+      '@russet/ai':
+        specifier: workspace:^
+        version: link:../ai
       typebox:
         specifier: ^1.4.4
         version: 1.4.4

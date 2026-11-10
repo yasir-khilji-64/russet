@@ -25,11 +25,12 @@
     "clean": "tsc --build tsconfig.build.json --clean",
     "build": "tsc --build tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint src tests",
-    "format": "oxfmt --check src tests"
+    "lint": "oxlint src tests examples",
+    "format": "oxfmt --check src tests examples"
   },
   "dependencies": {
     "@russet/agent": "workspace:^",
+    "@russet/ai": "workspace:^",
     "typebox": "^1.4.4",
     "yaml": "^2.9.1"
   }

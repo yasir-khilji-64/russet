@@ -49,10 +49,6 @@ export interface RuntimeGatewayOptions {
   readonly mutationContext?: MutationContextGuard;
 }
 
-// ------------------------------------------------------------
-// Tool advertisement
-// ------------------------------------------------------------
-
 function modeDecision(
   policy: WorkspacePolicy,
   action: WorkspaceAction,
@@ -89,10 +85,6 @@ function canAdvertise(
 
   return approvalsAvailable || !decisions.includes('ask');
 }
-
-// ------------------------------------------------------------
-// Structured outcomes
-// ------------------------------------------------------------
 
 function rejected(code: RejectionCode, message: string): ToolExecutionResult {
   return { status: 'rejected', code, message };
@@ -138,10 +130,6 @@ function workspaceFailure(error: unknown): ToolExecutionResult {
   return failed('The workspace resource could not be resolved.');
 }
 
-// ------------------------------------------------------------
-// Resource resolution and authorization
-// ------------------------------------------------------------
-
 async function resolveTarget(
   workspace: Workspace,
   target: RuntimeToolTarget,
@@ -180,10 +168,6 @@ function evaluateAuthority(
   };
 }
 
-// ------------------------------------------------------------
-// Tool output
-// ------------------------------------------------------------
-
 function boundedOutput(text: string): {
   readonly text: string;
   readonly truncated: boolean;
@@ -196,7 +180,6 @@ function boundedOutput(text: string): {
 
   let end = MAX_OUTPUT_BYTES;
 
-  // Avoid cutting through a UTF-8 sequence.
   while (end > 0 && (bytes[end]! & 0xc0) === 0x80) {
     end--;
   }
@@ -207,9 +190,20 @@ function boundedOutput(text: string): {
   };
 }
 
-// ------------------------------------------------------------
-// Runtime execution gateway
-// ------------------------------------------------------------
+function invalidArgumentsMessage(tool: RegisteredRuntimeTool): string {
+  const schema = JSON.stringify(tool.modelDefinition.parameters);
+
+  const hint =
+    schema.length <= 2_048
+      ? ` Expected parameter schema: ${schema}`
+      : ' Refer to the advertised tool parameter schema.';
+
+  return (
+    `Invalid arguments for "${tool.name}".` +
+    hint +
+    ' Correct the invalid fields before retrying.'
+  );
+}
 
 export function createRuntimeGateway(
   options: RuntimeGatewayOptions,
@@ -229,10 +223,6 @@ export function createRuntimeGateway(
   }
 
   return {
-    // --------------------------------------------------------
-    // Tool discovery
-    // --------------------------------------------------------
-
     async listModelTools(context) {
       context.signal.throwIfAborted();
 
@@ -249,13 +239,7 @@ export function createRuntimeGateway(
       });
     },
 
-    // --------------------------------------------------------
-    // Tool execution
-    // --------------------------------------------------------
-
     async execute(request, context) {
-      // 1. Cancellation and tool identity.
-
       if (context.signal.aborted) {
         return cancelled('none');
       }
@@ -274,8 +258,6 @@ export function createRuntimeGateway(
         );
       }
 
-      // 2. Validate model-provided arguments.
-
       let args: ReturnType<typeof tool.validate>;
 
       try {
@@ -285,13 +267,8 @@ export function createRuntimeGateway(
       }
 
       if (args === undefined) {
-        return rejected(
-          'invalid_arguments',
-          'Tool arguments do not match the registered schema.',
-        );
+        return rejected('invalid_arguments', invalidArgumentsMessage(tool));
       }
-
-      // 3. Prepare the requested resource target.
 
       let target: RuntimeToolTarget;
 
@@ -312,8 +289,6 @@ export function createRuntimeGateway(
         return rejected('invalid_arguments', 'Invalid tool resource target.');
       }
 
-      // 4. Resolve the workspace resource.
-
       let resource: Resource;
 
       try {
@@ -328,8 +303,6 @@ export function createRuntimeGateway(
         return cancelled('none');
       }
 
-      // 5. Evaluate effective authorization.
-
       let authority = evaluateAuthority(policy, tool, resource);
 
       if (authority.deny) {
@@ -338,12 +311,6 @@ export function createRuntimeGateway(
           'The runtime policy does not allow this operation.',
         );
       }
-
-      // 6. Verify context prepared for this run.
-      //
-      // Context refresh is distinct from authorization.
-      // A missing guard is a configuration error, not a
-      // refreshable instruction state.
 
       const requiresPreparedContext = tool.requiresPreparedContext;
 
@@ -401,11 +368,6 @@ export function createRuntimeGateway(
         return beforeApproval;
       }
 
-      // 7. Determine whether approval is required.
-      //
-      // Changes to AGENTS.md always require approval,
-      // including under the workspace_write mode.
-
       const modifiesAgentsMd =
         tool.action === 'fs.write' &&
         basename(resource.relativePath).toLowerCase() === 'agents.md';
@@ -419,8 +381,6 @@ export function createRuntimeGateway(
             'This operation requires approval, which is not configured.',
           );
         }
-
-        // 8. Bind approval to the exact invocation.
 
         const approval = createApprovalRequest(
           {
@@ -442,8 +402,6 @@ export function createRuntimeGateway(
         } catch {
           return failed('Approval coordination failed.');
         }
-
-        // 9. Wait for allow, deny, expiry, or cancellation.
 
         let outcome: Awaited<ReturnType<typeof awaitApproval>>;
 
@@ -487,14 +445,6 @@ export function createRuntimeGateway(
         approvedUntil = approval.expiresAt;
       }
 
-      // 10. Revalidate the resource.
-      //
-      // This runs whether approval was required or not.
-      // Resource paths may change during async preparation.
-      //
-      // These are best-effort pathname checks, not
-      // race-free filesystem transactions.
-
       let current: Resource;
 
       try {
@@ -517,8 +467,6 @@ export function createRuntimeGateway(
 
       resource = current;
 
-      // 11. Re-evaluate effective authority.
-
       authority = evaluateAuthority(policy, tool, resource);
 
       if (authority.deny) {
@@ -528,8 +476,6 @@ export function createRuntimeGateway(
         );
       }
 
-      // A newly encountered approval requirement must
-      // never be interpreted as an implicit allow.
       if (authority.ask && approvedUntil === undefined) {
         return rejected(
           'approval_unavailable',
@@ -537,15 +483,12 @@ export function createRuntimeGateway(
         );
       }
 
-      // 12. Recheck instruction applicability and freshness.
-
       const afterApproval = await enforceContext();
 
       if (afterApproval !== undefined) {
         return afterApproval;
       }
 
-      // Approval must still be valid at dispatch time.
       if (approvedUntil !== undefined && Date.now() >= approvedUntil) {
         return rejected('approval_expired', 'The approval request expired.');
       }
@@ -553,8 +496,6 @@ export function createRuntimeGateway(
       if (context.signal.aborted) {
         return cancelled('none');
       }
-
-      // 13. Begin authorized handler execution.
 
       try {
         context.onUpdate({
@@ -564,12 +505,9 @@ export function createRuntimeGateway(
         return failed('Execution coordination failed.');
       }
 
-      // An Agent observer may cancel synchronously.
       if (context.signal.aborted) {
         return cancelled('none');
       }
-
-      // 14. Invoke the handler and normalize its outcome.
 
       try {
         const text = await tool.execute(args, {

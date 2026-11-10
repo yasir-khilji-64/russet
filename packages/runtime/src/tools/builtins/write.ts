@@ -31,30 +31,76 @@ export interface ManagedWriteToolsOptions {
   readonly onRelevantTarget?: (target: InstructionTarget) => void;
 }
 
-const path = Type.String({ minLength: 1 });
+const existingFilePath = Type.String({
+  minLength: 1,
+  description:
+    'Path to an existing file, relative to the workspace root. ' +
+    'Absolute paths are not supported.',
+});
 
-const content = Type.String();
+const newFilePath = Type.String({
+  minLength: 1,
+  description:
+    'Path for a new file, relative to the workspace root. ' +
+    'The parent directory must already exist. ' +
+    'The destination must not exist.',
+});
 
-const sha256 = Type.String({
+const expectedSha256 = Type.String({
   pattern: '^[0-9a-f]{64}$',
+  description:
+    'Lowercase SHA-256 digest of the complete current file content, ' +
+    'as returned by fs_read. Must contain exactly 64 hexadecimal characters.',
 });
 
 const CreateParameters = Type.Object(
-  { path, content },
+  {
+    path: newFilePath,
+
+    content: Type.String({
+      description:
+        'Complete UTF-8 content to write into the new file. ' +
+        'An empty string creates an empty file.',
+    }),
+  },
   { additionalProperties: false },
 );
 
 const WriteParameters = Type.Object(
-  { path, content, expectedSha256: sha256 },
+  {
+    path: existingFilePath,
+
+    content: Type.String({
+      description:
+        'Complete replacement content for the existing file. ' +
+        'This operation replaces the entire file, not just selected lines. ' +
+        'An empty string produces an empty file.',
+    }),
+
+    expectedSha256,
+  },
   { additionalProperties: false },
 );
 
 const EditParameters = Type.Object(
   {
-    path,
-    expectedSha256: sha256,
-    oldText: Type.String({ minLength: 1 }),
-    newText: Type.String(),
+    path: existingFilePath,
+
+    expectedSha256,
+
+    oldText: Type.String({
+      minLength: 1,
+      description:
+        'Exact, case-sensitive text to replace. ' +
+        'Must occur exactly once in the current file. ' +
+        'Regular expressions are not supported.',
+    }),
+
+    newText: Type.String({
+      description:
+        'Replacement text for the matched occurrence. ' +
+        'May be empty to remove the matched text.',
+    }),
   },
   { additionalProperties: false },
 );

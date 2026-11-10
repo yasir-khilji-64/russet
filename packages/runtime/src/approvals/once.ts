@@ -15,7 +15,7 @@ export interface ApprovalRequest {
   readonly description: string;
   readonly expiresAt: number;
   readonly operation: Readonly<{
-    toolname: string;
+    toolName: string;
     target: string;
     arguments: Readonly<Record<string, unknown>>;
   }>;
@@ -75,9 +75,9 @@ export function createApprovalRequest(
       `${JSON.stringify(resource.relativePath)}?`,
     expiresAt: Date.now() + timeoutMs,
     operation: Object.freeze({
-      toolname: execution.toolCall.name,
+      toolName: execution.toolCall.name,
       target: resource.relativePath,
-      arguments: args,
+      arguments: structuredClone(args),
     }),
   });
 }
