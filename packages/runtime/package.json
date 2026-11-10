@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@russet/agent": "workspace:^",
-    "typebox": "^1.4.4"
+    "typebox": "^1.4.4",
+    "yaml": "^2.9.1"
   }
 }

@@ -87,3 +87,25 @@ export type {
   RuntimeToolRegistry,
   RuntimeToolTarget,
 } from './tools/types.js';
+
+export { activateTrustedExtensions } from './extensions/host.js';
+
+export { RUSSET_EXTENSION_API_VERSION } from './extensions/types.js';
+export type {
+  ExtensionContext,
+  ExtensionHost,
+  RussetExtension,
+} from './extensions/types.js';
+
+export {
+  composeRuntimeConfiguration,
+  parseRuntimeConfiguration,
+} from './config/configuration.js';
+export type { RuntimeConfiguration } from './config/configuration.js';
+
+export { loadRuntimeConfiguration } from './config/load.js';
+export type {
+  ConfigurationSourceStatus,
+  LoadedRuntimeConfiguration,
+  RuntimeConfigurationLoadOptions,
+} from './config/load.js';
