@@ -48,6 +48,8 @@ export type {
   WorkspaceContextSnapshot,
 } from './context/provider.js';
 
+export { createContextRelevanceTracker } from './context/relevance.js';
+
 export { InstructionLoadError } from './context/types.js';
 export type {
   InstructionErrorCode,
@@ -60,6 +62,9 @@ export { createToolRegistry, defineRuntimeTool } from './tools/registry.js';
 
 export { createRuntimeGateway } from './tools/gateway.js';
 export type { RuntimeGatewayOptions } from './tools/gateway.js';
+
+export { createManagedReadTools } from './tools/builtins/index.js';
+export type { ManagedReadToolsOptions } from './tools/builtins/index.js';
 
 export type {
   RegisteredRuntimeTool,

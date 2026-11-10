@@ -22,7 +22,7 @@ function deepFreezeJson(value: unknown): void {
   Object.freeze(value);
 }
 
-export function defineRuntimeTool<TArguments extends Record<string, unknown>>(
+export function defineRuntimeTool<TArguments extends object>(
   definition: RuntimeTool<TArguments>,
 ): RegisteredRuntimeTool {
   if (!VALID_TOOL_NAME.test(definition.name)) {
@@ -57,6 +57,14 @@ export function defineRuntimeTool<TArguments extends Record<string, unknown>>(
     throw new TypeError('Invalid runtime tool implementation.');
   }
 
+  if (
+    definition.failureSideEffects !== undefined &&
+    definition.failureSideEffects !== 'none' &&
+    definition.failureSideEffects !== 'possible'
+  ) {
+    throw new TypeError('Invalid failure side-effect classification');
+  }
+
   const parameters = JSON.parse(
     JSON.stringify(definition.parameters),
   ) as ReturnType<typeof Type.Object>;
@@ -82,6 +90,7 @@ export function defineRuntimeTool<TArguments extends Record<string, unknown>>(
     name: definition.name,
     action: definition.action,
     modelDefinition,
+    failureSideEffects: definition.failureSideEffects ?? 'possible',
 
     validate(input: unknown) {
       const args = normalizeToolArguments(input);

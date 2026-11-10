@@ -8,6 +8,7 @@ import {
 } from '../workspace/paths.js';
 import { WorkspaceError } from '../workspace/types.js';
 import type { Workspace } from '../workspace/types.js';
+import { ManagedToolError } from './errors.js';
 import type { RuntimeToolRegistry } from './types.js';
 
 const MAX_OUTPUT_BYTES = 64 * 1024;
@@ -240,7 +241,7 @@ export function createRuntimeGateway(
         });
 
         if (context.signal.aborted) {
-          return cancelled('possible');
+          return cancelled(tool.failureSideEffects);
         }
 
         if (typeof text !== 'string') {
@@ -259,15 +260,18 @@ export function createRuntimeGateway(
           ],
           ...(output.truncated ? { truncated: true } : {}),
         };
-      } catch {
+      } catch (error) {
         if (context.signal.aborted) {
-          return cancelled('possible');
+          return cancelled(tool.failureSideEffects);
         }
 
         return {
           status: 'failed',
-          message: 'The runtime tool did not complete successfully.',
-          sideEffects: 'possible',
+          message:
+            error instanceof ManagedToolError
+              ? error.message
+              : 'The runtime tool did not complete successfully.',
+          sideEffects: tool.failureSideEffects,
         };
       }
     },

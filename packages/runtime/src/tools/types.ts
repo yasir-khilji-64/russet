@@ -25,11 +25,12 @@ export interface RuntimeToolContext {
   readonly resource: ExistingWorkspaceResource | NewWorkspaceFileTarget;
 }
 
-export interface RuntimeTool<TArguments extends Record<string, unknown>> {
+export interface RuntimeTool<TArguments extends object> {
   readonly name: string;
   readonly description: string;
   readonly action: WorkspaceFileAction;
   readonly parameters: ReturnType<typeof Type.Object>;
+  readonly failureSideEffects?: 'none' | 'possible';
 
   target(arguments_: Readonly<TArguments>): RuntimeToolTarget;
   execute(
@@ -42,6 +43,7 @@ export interface RegisteredRuntimeTool {
   readonly name: string;
   readonly action: WorkspaceFileAction;
   readonly modelDefinition: ModelToolDefinition;
+  readonly failureSideEffects: 'none' | 'possible';
 
   validate(input: unknown): Readonly<Record<string, unknown>> | undefined;
   target(arguments_: Readonly<Record<string, unknown>>): RuntimeToolTarget;
