@@ -290,3 +290,109 @@ describe('AGENTS.md discovery', () => {
     });
   });
 });
+
+describe('instruction source reliability', () => {
+  beforeEach(async () => {
+    sandbox = await mkdtemp(join(tmpdir(), 'russet-instruction-h2-'));
+
+    root = join(sandbox, 'workspace');
+
+    await mkdir(join(root, 'src'), {
+      recursive: true,
+    });
+
+    await writeFile(join(root, 'src/main.ts'), 'export {};\n');
+
+    workspace = await createWorkspace(root);
+
+    policy = createWorkspacePolicy({
+      mode: 'read_only',
+    });
+  });
+
+  afterEach(async () => {
+    await rm(sandbox, {
+      recursive: true,
+      force: true,
+    });
+  });
+
+  it('loads applicable regular instruction files', async () => {
+    await writeFile(join(root, 'AGENTS.md'), '# Root instructions\n');
+
+    await writeFile(join(root, 'src/AGENTS.md'), '# Source instructions\n');
+
+    const result = await loadWorkspaceInstructions(
+      workspace,
+      policy,
+      {
+        kind: 'file',
+        path: 'src/main.ts',
+      },
+      new AbortController().signal,
+    );
+
+    expect(result.sources.map((source) => source.path)).toEqual([
+      'AGENTS.md',
+      'src/AGENTS.md',
+    ]);
+
+    expect(result.sources[0]?.content).toContain('Root instructions');
+
+    expect(result.sources[1]?.content).toContain('Source instructions');
+  });
+
+  it('rejects symlinked instruction sources', async () => {
+    const outside = join(sandbox, 'outside.md');
+
+    await writeFile(outside, '# Outside instructions\n');
+
+    await symlink(outside, join(root, 'AGENTS.md'));
+
+    await expect(
+      loadWorkspaceInstructions(
+        workspace,
+        policy,
+        {
+          kind: 'directory',
+          path: '.',
+        },
+        new AbortController().signal,
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('does not load instructions after cancellation', async () => {
+    await writeFile(join(root, 'AGENTS.md'), '# Instructions\n');
+
+    const controller = new AbortController();
+
+    controller.abort(new Error('Cancelled for test.'));
+
+    await expect(
+      loadWorkspaceInstructions(
+        workspace,
+        policy,
+        {
+          kind: 'directory',
+          path: '.',
+        },
+        controller.signal,
+      ),
+    ).rejects.toThrow('Cancelled for test.');
+  });
+
+  it('accepts a workspace without AGENTS.md', async () => {
+    const result = await loadWorkspaceInstructions(
+      workspace,
+      policy,
+      {
+        kind: 'directory',
+        path: '.',
+      },
+      new AbortController().signal,
+    );
+
+    expect(result.sources).toHaveLength(0);
+  });
+});

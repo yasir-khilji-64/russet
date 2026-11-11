@@ -55,6 +55,7 @@ export function createMutationContextGuard(
         options.workspace,
         options.policy,
         target,
+        signal,
       );
 
       signal.throwIfAborted();

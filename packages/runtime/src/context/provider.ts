@@ -232,6 +232,7 @@ class WorkspaceContextImpl implements WorkspaceContext {
         this.workspace,
         this.policy,
         target,
+        request.signal,
       );
 
       for (const source of loaded.sources) {

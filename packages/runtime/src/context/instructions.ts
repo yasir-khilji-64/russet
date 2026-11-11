@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
-import { open } from 'node:fs/promises';
+import { lstat, open } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { evaluateWorkspacePolicy } from '../policy/evaluate.js';
@@ -53,8 +53,10 @@ function scopesFor(directory: string): string[] {
 async function readBounded(
   path: string,
   remainingBytes: number,
+  signal?: AbortSignal,
 ): Promise<Buffer> {
   let handle;
+  signal?.throwIfAborted();
 
   try {
     handle = await open(
@@ -79,6 +81,22 @@ async function readBounded(
 
   try {
     const before = await handle.stat({ bigint: true });
+
+    const namedBefore = await lstat(path, {
+      bigint: true,
+    });
+
+    if (
+      !before.isFile() ||
+      !namedBefore.isFile() ||
+      before.dev !== namedBefore.dev ||
+      before.ino !== namedBefore.ino
+    ) {
+      throw new InstructionLoadError(
+        'source_changed',
+        'Instruction source identity changed during acquisition.',
+      );
+    }
 
     if (!before.isFile()) {
       throw new InstructionLoadError(
@@ -107,6 +125,8 @@ async function readBounded(
     let readBytes = 0;
 
     while (readBytes < buffer.length) {
+      signal?.throwIfAborted();
+
       const { bytesRead } = await handle.read(
         buffer,
         readBytes,
@@ -137,6 +157,26 @@ async function readBounded(
 
     const after = await handle.stat({ bigint: true });
 
+    const namedAfter = await lstat(path, {
+      bigint: true,
+    });
+
+    if (
+      !namedAfter.isFile() ||
+      namedAfter.dev !== before.dev ||
+      namedAfter.ino !== before.ino ||
+      namedAfter.size !== before.size ||
+      namedAfter.mtimeNs !== before.mtimeNs ||
+      namedAfter.ctimeNs !== before.ctimeNs
+    ) {
+      throw new InstructionLoadError(
+        'source_changed',
+        'Instruction source changed while being read.',
+      );
+    }
+
+    signal?.throwIfAborted();
+
     if (
       !after.isFile() ||
       before.dev !== after.dev ||
@@ -158,6 +198,10 @@ async function readBounded(
       throw error;
     }
 
+    if (signal?.aborted) {
+      signal.throwIfAborted();
+    }
+
     throw new InstructionLoadError(
       'source_unavailable',
       'Instruction file could not be read.',
@@ -172,7 +216,10 @@ export async function loadWorkspaceInstructions(
   workspace: Workspace,
   policy: WorkspacePolicy,
   target: InstructionTarget,
+  signal?: AbortSignal,
 ): Promise<WorkspaceInstructions> {
+  signal?.throwIfAborted();
+
   if (
     target.kind !== 'file' &&
     target.kind !== 'directory' &&
@@ -208,6 +255,8 @@ export async function loadWorkspaceInstructions(
   let totalBytes = 0;
 
   for (const scope of scopesFor(directory)) {
+    signal?.throwIfAborted();
+
     const path = scope === '.' ? 'AGENTS.md' : `${scope}/AGENTS.md`;
 
     let source;
@@ -262,7 +311,22 @@ export async function loadWorkspaceInstructions(
     const bytes = await readBounded(
       source.absolutePath,
       MAX_TOTAL_BYTES - totalBytes,
+      signal,
     );
+
+    signal?.throwIfAborted();
+
+    const currentSource = await resolveExistingWorkspacePath(
+      workspace,
+      source.relativePath,
+    );
+
+    if (currentSource.kind !== 'file') {
+      throw new InstructionLoadError(
+        'source_changed',
+        'Instruction source is no longer a regular file',
+      );
+    }
 
     await assertWorkspaceIdentity(workspace);
 

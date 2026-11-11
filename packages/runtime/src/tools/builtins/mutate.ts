@@ -33,10 +33,6 @@ function checkHash(actual: string, expected: string): void {
   }
 }
 
-/**
- * Stage complete UTF-8 content in the target directory.
- * The temporary pathname is exclusive and initially private.
- */
 async function stageFile(
   destination: string,
   content: string,
@@ -63,16 +59,12 @@ async function stageFile(
     return temporary;
   } finally {
     if (!ready) {
-      // Cleanup failures must not be mistaken for clean rollback.
       await handle.close().catch(() => undefined);
       await unlink(temporary);
     }
   }
 }
 
-/**
- * Creates a new file without replacing an existing final target.
- */
 export async function createWorkspaceFile(
   workspace: Workspace,
   path: string,
@@ -95,8 +87,6 @@ export async function createWorkspaceFile(
 
     signal.throwIfAborted();
 
-    // POSIX link creates the destination only if absent.
-    // Unlike rename, it does not overwrite an existing target.
     await link(temporary, target.absolutePath);
   } finally {
     await unlink(temporary);
@@ -105,12 +95,6 @@ export async function createWorkspaceFile(
   return textSha256(content);
 }
 
-/**
- * Replaces a regular file only when its current content
- * matches an explicitly supplied SHA-256 precondition.
- *
- * The final rename is not a cross-process compare-and-swap.
- */
 export async function replaceWorkspaceFile(
   workspace: Workspace,
   path: string,
@@ -166,6 +150,20 @@ export async function replaceWorkspaceFile(
 
     signal.throwIfAborted();
 
+    const latestIdentity = await lstat(target.absolutePath, { bigint: true });
+
+    if (
+      !latestIdentity.isFile() ||
+      latestIdentity.ino !== original.ino ||
+      latestIdentity.dev !== original.dev
+    ) {
+      throw new ManagedToolError(
+        'The replacement target identity changed before commit.',
+      );
+    }
+
+    signal.throwIfAborted();
+
     await rename(temporary, target.absolutePath);
   } catch (error) {
     try {
@@ -191,9 +189,6 @@ export async function replaceWorkspaceFile(
   return textSha256(content);
 }
 
-/**
- * Exact-match editing. Rejects missing or ambiguous matches.
- */
 export async function editWorkspaceFile(
   workspace: Workspace,
   path: string,
