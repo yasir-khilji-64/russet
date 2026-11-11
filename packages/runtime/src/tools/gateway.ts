@@ -205,6 +205,14 @@ function invalidArgumentsMessage(tool: RegisteredRuntimeTool): string {
   );
 }
 
+function requiresMutationContext(tool: RegisteredRuntimeTool): boolean {
+  return (
+    tool.requiresPreparedContext ||
+    tool.action === 'fs.write' ||
+    tool.action === 'fs.delete'
+  );
+}
+
 export function createRuntimeGateway(
   options: RuntimeGatewayOptions,
 ): ToolExecutionGateway {
@@ -231,7 +239,7 @@ export function createRuntimeGateway(
 
         return (
           tool !== undefined &&
-          (!tool.requiresPreparedContext || mutationContext !== undefined) &&
+          (!requiresMutationContext(tool) || mutationContext !== undefined) &&
           canAdvertise(policy, tool.action, approvalBroker !== undefined) &&
           (!tool.requiresRead ||
             canAdvertise(policy, 'fs.read', approvalBroker !== undefined))
@@ -312,7 +320,7 @@ export function createRuntimeGateway(
         );
       }
 
-      const requiresPreparedContext = tool.requiresPreparedContext;
+      const requiresPreparedContext = requiresMutationContext(tool);
 
       async function checkPreparedContext(): Promise<
         'ready' | 'refresh' | 'unavailable'
@@ -507,6 +515,10 @@ export function createRuntimeGateway(
 
       if (context.signal.aborted) {
         return cancelled('none');
+      }
+
+      if (approvedUntil !== undefined && Date.now() >= approvedUntil) {
+        return rejected('approval_expired', 'The approval request is expired');
       }
 
       try {

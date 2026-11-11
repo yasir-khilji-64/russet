@@ -13,6 +13,7 @@ import {
   type ToolExecutionUpdate,
 } from '@russet/agent';
 
+import type { MutationContextGuard } from '../src/context/mutation.js';
 import {
   createRuntimeGateway,
   createToolRegistry,
@@ -91,14 +92,36 @@ function writeTool(): RegisteredRuntimeTool {
   });
 }
 
+/**
+ * Gateway unit-test fixture.
+ *
+ * This guard simulates successfully prepared mutation context.
+ * Tests using it verify gateway behavior, not real AGENTS.md
+ * loading or instruction-context freshness.
+ */
+function readyMutationContext(onCheck?: () => void): MutationContextGuard {
+  return {
+    async check() {
+      onCheck?.();
+      return 'ready';
+    },
+  };
+}
+
+/**
+ * An optional guard is deliberately omitted rather than
+ * supplied as undefined, respecting exactOptionalPropertyTypes.
+ */
 function gateway(
   tools: readonly RegisteredRuntimeTool[] = [readTool()],
   selectedPolicy: WorkspacePolicy = policy,
+  mutationContext?: MutationContextGuard,
 ): ToolExecutionGateway {
   return createRuntimeGateway({
     workspace,
     policy: selectedPolicy,
     registry: createToolRegistry(tools),
+    ...(mutationContext === undefined ? {} : { mutationContext }),
   });
 }
 
@@ -197,6 +220,65 @@ describe('runtime tool registry', () => {
     });
 
     expect(definitions.map((tool) => tool.name)).toEqual(['mock_read']);
+  });
+
+  it('requires prepared context for registered write actions', () => {
+    const tool = defineRuntimeTool({
+      name: 'example_create',
+      description: 'Create a workspace file.',
+      action: 'fs.write',
+      requiresPreparedContext: false,
+      parameters: Type.Object({}, { additionalProperties: false }),
+
+      target() {
+        return {
+          path: 'example.txt',
+          expectation: 'new_file',
+        };
+      },
+
+      execute() {
+        return 'Created';
+      },
+    });
+
+    expect(tool.requiresPreparedContext).toBe(true);
+    expect(tool.failureSideEffects).toBe('possible');
+  });
+
+  it('advertises a writable tool when context verification is configured', async () => {
+    const writable = createWorkspacePolicy({
+      mode: 'workspace_write',
+    });
+
+    const runtime = gateway(
+      [readTool(), writeTool()],
+      writable,
+      readyMutationContext(),
+    );
+
+    const definitions = await runtime.listModelTools({
+      signal: new AbortController().signal,
+    });
+
+    expect(definitions.map((tool) => tool.name)).toEqual([
+      'mock_read',
+      'mock_write',
+    ]);
+  });
+
+  it('does not advertise a writable tool without mutation context', async () => {
+    const writable = createWorkspacePolicy({
+      mode: 'workspace_write',
+    });
+
+    const runtime = gateway([writeTool()], writable);
+
+    const definitions = await runtime.listModelTools({
+      signal: new AbortController().signal,
+    });
+
+    expect(definitions).toHaveLength(0);
   });
 });
 
@@ -319,18 +401,115 @@ describe('runtime execution gateway', () => {
     expect(executions).toBe(0);
   });
 
-  it('allows a policy-authorized fake write', async () => {
+  it('allows a policy-authorized fake write with prepared context', async () => {
     const writable = createWorkspacePolicy({
       mode: 'workspace_write',
     });
 
-    const result = await gateway([writeTool()], writable).execute(
+    let contextChecks = 0;
+
+    const mutationContext = readyMutationContext(() => {
+      contextChecks++;
+    });
+
+    const updates: ToolExecutionUpdate[] = [];
+
+    const result = await gateway(
+      [writeTool()],
+      writable,
+      mutationContext,
+    ).execute(
+      request('mock_write', { path: 'src/new.ts' }),
+      executionContext(undefined, updates),
+    );
+
+    expect(result).toEqual({
+      status: 'success',
+      content: [
+        {
+          type: 'text',
+          text: 'Mock creation completed.',
+        },
+      ],
+    });
+
+    expect(contextChecks).toBe(2);
+    expect(executions).toBe(1);
+
+    expect(updates).toEqual([{ type: 'execution.started' }]);
+  });
+
+  it('rejects a policy-authorized write without mutation context', async () => {
+    const writable = createWorkspacePolicy({
+      mode: 'workspace_write',
+    });
+
+    const runtime = gateway([writeTool()], writable);
+
+    const result = await runtime.execute(
       request('mock_write', { path: 'src/new.ts' }),
       executionContext(),
     );
 
-    expect(result.status).toBe('success');
-    expect(executions).toBe(1);
+    expect(result).toMatchObject({
+      status: 'rejected',
+      code: 'permission_denied',
+    });
+
+    expect(executions).toBe(0);
+  });
+
+  it('rejects a write when mutation context requires refresh', async () => {
+    const writable = createWorkspacePolicy({
+      mode: 'workspace_write',
+    });
+
+    const mutationContext: MutationContextGuard = {
+      async check() {
+        return 'refresh';
+      },
+    };
+
+    const result = await gateway(
+      [writeTool()],
+      writable,
+      mutationContext,
+    ).execute(
+      request('mock_write', { path: 'src/new.ts' }),
+      executionContext(),
+    );
+
+    expect(result).toMatchObject({
+      status: 'rejected',
+      code: 'context_refresh_required',
+    });
+
+    expect(executions).toBe(0);
+  });
+
+  it('does not let a denied write reach the context guard', async () => {
+    let contextChecks = 0;
+
+    const mutationContext = readyMutationContext(() => {
+      contextChecks++;
+    });
+
+    const result = await gateway(
+      [writeTool()],
+      policy,
+      mutationContext,
+    ).execute(
+      request('mock_write', { path: 'src/new.ts' }),
+      executionContext(),
+    );
+
+    expect(result).toMatchObject({
+      status: 'rejected',
+      code: 'permission_denied',
+    });
+
+    expect(contextChecks).toBe(0);
+    expect(executions).toBe(0);
   });
 
   it('fails closed when approval is unavailable', async () => {
@@ -412,6 +591,7 @@ describe('runtime execution gateway', () => {
     }
 
     expect(result.truncated).toBe(true);
+
     expect(
       Buffer.byteLength(result.content[0]?.text ?? '', 'utf8'),
     ).toBeLessThanOrEqual(64 * 1024);
@@ -480,6 +660,7 @@ describe('runtime execution gateway', () => {
 
     const agent = createAgent({
       toolGateway: gateway(),
+
       inference: {
         stream() {
           const response = replies.shift();
@@ -503,6 +684,7 @@ describe('runtime execution gateway', () => {
                 response,
               };
             },
+
             async result() {
               return response;
             },

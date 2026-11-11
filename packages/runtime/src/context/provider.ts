@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { posix } from 'node:path';
 
 import type {
   AgentContextProvider,
@@ -198,17 +199,19 @@ class WorkspaceContextImpl implements WorkspaceContext {
         );
       }
 
+      const isNewFile = target.kind === 'new_file';
+
       const action =
-        target.kind === 'new_file'
-          ? ('fs.write' as const)
-          : target.kind === 'directory'
-            ? ('fs.search' as const)
-            : ('fs.read' as const);
+        isNewFile || target.kind === 'directory'
+          ? ('fs.search' as const)
+          : ('fs.read' as const);
 
       const decision = evaluateWorkspacePolicy(this.policy, {
-        action,
-        kind: resolved.kind,
-        relativePath: resolved.relativePath,
+        action: action,
+        kind: isNewFile ? 'directory' : resolved.kind,
+        relativePath: isNewFile
+          ? posix.dirname(resolved.relativePath)
+          : resolved.relativePath,
       });
 
       if (decision.decision !== 'allow') {

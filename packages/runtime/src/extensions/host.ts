@@ -114,7 +114,20 @@ export async function activateTrustedExtensions(
     }
   }
 
-  const registry = createToolRegistry(tools);
+  let registry: ReturnType<typeof createToolRegistry>;
+
+  try {
+    registry = createToolRegistry(tools);
+  } catch (error) {
+    const cleanupErrors = await deactivateAll(activated);
+
+    throw new AggregateError(
+      [error, ...cleanupErrors],
+      'Extension registry construction failed.',
+      { cause: error },
+    );
+  }
+
   let disposed = false;
 
   return Object.freeze({

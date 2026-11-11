@@ -88,27 +88,39 @@ export function awaitApproval(
   signal: AbortSignal,
 ): Promise<ApprovalOutcome> {
   return new Promise((resolve) => {
-    let settled = false;
+    const controller = new AbortController();
 
-    const finish = (result: ApprovalOutcome) => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const finish = (outcome: ApprovalOutcome): void => {
       if (settled) {
         return;
       }
 
       settled = true;
-      clearTimeout(timer);
+
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+
       signal.removeEventListener('abort', onAbort);
-      resolve(result);
+
+      if (outcome === 'expired' || outcome === 'cancelled') {
+        controller.abort(new Error(`Approval ${outcome}.`));
+      }
+
+      resolve(outcome);
     };
 
-    const onAbort = () => finish('cancelled');
+    const onAbort = (): void => {
+      finish('cancelled');
+    };
 
-    const timer = setTimeout(
-      () => finish('expired'),
-      Math.max(0, request.expiresAt - Date.now()),
-    );
-
-    signal.addEventListener('abort', onAbort, { once: true });
+    signal.addEventListener('abort', onAbort, {
+      once: true,
+    });
 
     if (signal.aborted) {
       finish('cancelled');
@@ -120,17 +132,46 @@ export function awaitApproval(
       return;
     }
 
-    Promise.resolve()
-      .then(() => broker.request(request, signal))
-      .then(
-        (decision) => {
-          if (Date.now() >= request.expiresAt) {
-            finish('expired');
-          } else {
-            finish(decision === 'allow' ? 'allow' : 'deny');
-          }
-        },
-        () => finish('deny'),
-      );
+    timer = setTimeout(
+      () => {
+        finish('expired');
+      },
+      Math.max(0, request.expiresAt - Date.now()),
+    );
+
+    void Promise.resolve()
+      .then(() => {
+        if (settled) {
+          return undefined;
+        }
+
+        return broker.request(request, controller.signal);
+      })
+      .then((decision) => {
+        if (settled) {
+          return;
+        }
+
+        if (signal.aborted) {
+          finish('cancelled');
+        } else if (Date.now() >= request.expiresAt) {
+          finish('expired');
+        } else {
+          finish(decision === 'allow' ? 'allow' : 'deny');
+        }
+      })
+      .catch(() => {
+        if (settled) {
+          return;
+        }
+
+        if (signal.aborted) {
+          finish('cancelled');
+        } else if (Date.now() >= request.expiresAt) {
+          finish('expired');
+        } else {
+          finish('deny');
+        }
+      });
   });
 }

@@ -121,7 +121,15 @@ function toToolResult(
           type: 'text',
           text: block.text,
         }))
-      : [{ type: 'text', text: result.message }];
+      : [
+          {
+            type: 'text',
+            text:
+              result.status === 'rejected'
+                ? `${result.code}: ${result.message}`
+                : result.message,
+          },
+        ];
 
   if (result.status === 'success' && result.truncated === true) {
     content.push({

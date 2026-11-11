@@ -106,7 +106,10 @@ export function defineRuntimeTool<TArguments extends object>(
     modelDefinition,
     failureSideEffects: definition.failureSideEffects ?? 'possible',
     requiresRead: definition.requiresRead ?? false,
-    requiresPreparedContext: definition.requiresPreparedContext ?? false,
+    requiresPreparedContext:
+      definition.requiresPreparedContext === true ||
+      definition.action === 'fs.write' ||
+      definition.action === 'fs.delete',
 
     validate(input: unknown) {
       const args = normalizeToolArguments(input);
