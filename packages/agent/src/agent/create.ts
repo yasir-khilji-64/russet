@@ -222,9 +222,9 @@ class AgentKernel implements Agent {
           if (
             typeof prepared.instructions !== 'string' ||
             typeof prepared.revision !== 'string' ||
-            prepared.instructions.trim().length === 0
+            prepared.revision.trim().length === 0
           ) {
-            throw new Error('Invalid prepared agent context');
+            throw new Error('Invalid prepared agent context.');
           }
 
           if (prepared.instructions.length > 0) {
